@@ -1,0 +1,127 @@
+{
+  "timestamp": "2026-09-07T20:49:03.625082",
+  "device": "187c:0550",
+  "note": "somente ELC_QUERY (0x20); nenhum comando de escrita emitido",
+  "queries": [
+    {
+      "label": "GET_VERSION",
+      "req": "2000",
+      "reply": "032000010107000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "label": "GET_STATUS",
+      "req": "2001",
+      "reply": "032001000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "label": "GET_PLATFORM",
+      "req": "2002",
+      "reply": "032002060104000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "label": "GET_ANIMATION_COUNT",
+      "req": "2003",
+      "reply": "032003000200610000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "label": "idx=0",
+      "req": "20040000",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "idx=1",
+      "req": "20040001",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "idx=2",
+      "req": "20040002",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "idx=3",
+      "req": "20040003",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x5b AC_SLEEP",
+      "req": "2004005b",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x5c AC_CHARGED",
+      "req": "2004005c",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x5d AC_CHARGING",
+      "req": "2004005d",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x5e DC_SLEEP",
+      "req": "2004005e",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x5f DC_ON",
+      "req": "2004005f",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x60 DC_LOW",
+      "req": "20040060",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x61 DEFAULT_POST_BOOT",
+      "req": "20040061",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "1byte 0x61",
+      "req": "200461",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "1byte 0x5d",
+      "req": "20045d",
+      "reply": "032004ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "sem argumento",
+      "req": "2005",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "animacao 0x61",
+      "req": "20050061",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "animacao 0x5d",
+      "req": "2005005d",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "animacao 0x5f",
+      "req": "2005005f",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x61 serie 0",
+      "req": "200500610000",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x61 serie 1",
+      "req": "200500610001",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "label": "0x61 serie 2",
+      "req": "200500610002",
+      "reply": "032005ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ]
+}

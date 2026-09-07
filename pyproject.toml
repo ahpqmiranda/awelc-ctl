@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awelc-ctl"
+version = "0.1.0"
+description = "Controle do backlight RGB Alienware AW-ELC (187c:0550) no Linux"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["pyusb>=1.2"]
+classifiers = [
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Hardware",
+]
+
+[project.scripts]
+awelc = "awelc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

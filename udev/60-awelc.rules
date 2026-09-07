@@ -1,0 +1,8 @@
+# Alienware AW-ELC lighting controller (Dell G-Series / Alienware).
+# Da acesso ao usuario da sessao local, dispensando sudo/pkexec.
+#
+# Instalar:
+#   sudo cp 60-awelc.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+SUBSYSTEM=="usb", ATTRS{idVendor}=="187c", ATTRS{idProduct}=="0550", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="187c", ATTRS{idProduct}=="0551", MODE="0660", TAG+="uaccess"

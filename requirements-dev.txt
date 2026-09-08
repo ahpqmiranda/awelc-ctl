@@ -1,0 +1,5 @@
+# Dependências de desenvolvimento.
+#   .venv/bin/pip install -r requirements-dev.txt
+
+-r requirements.txt
+pytest>=7

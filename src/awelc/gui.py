@@ -22,10 +22,14 @@ from .protocol import Elc
 
 UDEV_RULE = Path(__file__).resolve().parent.parent.parent / "udev" / "60-awelc.rules"
 
+# ATENCAO aos nomes: o upstream chama MORPH de "fade", mas o que ele monta e
+# uma rotacao dos canais RGB, que produz um ciclo de cores - o "rainbow" do
+# Alienware Command Center. PULSE nunca foi exercitado por ninguem e e
+# candidato a ser o "breath" do ACC, sem confirmacao. Ver docs/protocol.md.
 EFFECTS = [
     ("Estático", C.EFFECT_COLOR),
-    ("Fade (morph)", C.EFFECT_MORPH),
-    ("Pulse", C.EFFECT_PULSE),
+    ("Rainbow (ciclo de cores)", C.EFFECT_MORPH),
+    ("Pulse (não confirmado)", C.EFFECT_PULSE),
 ]
 
 ANIMATION_SLOTS = [
@@ -272,7 +276,11 @@ class MainWindow(QMainWindow):
         self.duration.setRange(1, 0xFFFF)
         self.duration.setValue(0xFF)
         self.duration.setSuffix(" un.")
-        fl.addRow("Duração do fade:", self.duration)
+        self.duration.setToolTip(
+            "Unidade desconhecida. O upstream fixa 255 sem explicar; "
+            "ver as limitações conhecidas no README."
+        )
+        fl.addRow("Duração do ciclo:", self.duration)
         lay.addWidget(fx)
 
         lay.addStretch(1)

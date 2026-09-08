@@ -153,10 +153,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.set_defaults(func=cmd_color)
 
-    sp = sub.add_parser("morph", help="grava um ciclo de cores")
+    sp = sub.add_parser(
+        "rainbow", aliases=["morph"],
+        help="grava um ciclo de cores (rotação dos canais RGB)",
+    )
     sp.add_argument("color", type=parse_color)
     sp.add_argument("--zones", **zones_kw)
-    sp.add_argument("--duration", type=int, default=0x00FF, help="duracao (padrao 255)")
+    sp.add_argument("--duration", type=int, default=0x00FF,
+                    help="duracao do ciclo, unidade desconhecida (padrao 255)")
     sp.set_defaults(func=cmd_morph)
 
     sp = sub.add_parser("brightness", help="ajusta o brilho (0-100)")

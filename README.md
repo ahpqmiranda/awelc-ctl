@@ -70,6 +70,12 @@ Três abas:
 - **Dispositivo** — firmware, plataforma, quantas animações estão gravadas, e
   se este firmware permite lê-las de volta.
 
+![Aba de zonas e cor](docs/img/gui-zonas.png)
+
+![Aba de animações](docs/img/gui-animacoes.png)
+
+![Aba do dispositivo](docs/img/gui-dispositivo.png)
+
 Se faltar permissão, aparece uma faixa no topo com um botão que instala a regra
 udev via `pkexec` — o app em si nunca roda como root.
 
@@ -160,6 +166,22 @@ exigiria patch no kernel. Contorno: vincular um atalho do desktop a `awelc off`.
 cp packaging/awelc-gui.desktop ~/.local/share/applications/
 update-desktop-database ~/.local/share/applications
 ```
+
+## Contribuindo — procuram-se outros modelos
+
+O controlador `187c:0550` aparece em muitos **Dell G3, G5, G7, G15, G16 e
+Alienware**, mas só o G5 5590 foi validado até agora. Cada modelo tem topologia
+de zonas própria e o firmware varia.
+
+Se você tem um desses, o relatório sai pronto com um comando:
+
+```bash
+.venv/bin/python tools/collect_report.py -o relatorio.md
+```
+
+Somente leitura — não altera a iluminação nem grava nada. Veja
+[`CONTRIBUTING.md`](CONTRIBUTING.md) para o passo a passo e para as perguntas de
+protocolo ainda em aberto.
 
 ## Documentação
 

@@ -1,0 +1,12 @@
+# Dependências de execução.
+# A fonte de verdade é o pyproject.toml; este arquivo existe para quem prefere
+# o fluxo clássico com pip.
+#
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#
+# Ou, com uv:
+#   uv venv && uv pip install -e ".[gui]"
+
+pyusb>=1.2      # comunicação USB com o controlador — obrigatório
+PySide6>=6.5    # interface gráfica — opcional, a CLI funciona sem

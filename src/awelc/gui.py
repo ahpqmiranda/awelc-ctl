@@ -451,19 +451,35 @@ class MainWindow(QMainWindow):
         if self.live_check.isChecked():
             self._live_timer.start()
 
+    def _zone_map(self) -> dict[int, tuple[int, int, int]]:
+        """Zonas desligadas entram apagadas, para substituir a animacao inteira."""
+        mapping: dict[int, tuple[int, int, int]] = {}
+        for z in self.zones:
+            if z.enabled:
+                c = z.color
+                mapping[z.index] = (c.red(), c.green(), c.blue())
+            else:
+                mapping[z.index] = (0, 0, 0)
+        return mapping
+
+    def _effect_params(self) -> tuple[int, int]:
+        effect = self.effect.currentData()
+        duration = self.duration.value() if effect == C.EFFECT_MORPH else C.DURATION_MAX
+        return effect, duration
+
     def _apply_live(self) -> None:
         zones = self.active_zones()
         if not zones:
             self.statusBar().showMessage("Nenhuma zona selecionada", 3000)
             return
+        effect, duration = self._effect_params()
+        mapping = self._zone_map()
 
         def do(elc: Elc):
-            for z in self.zones:
-                if not z.enabled:
-                    elc.set_color([z.index], 0, 0, 0)
-                else:
-                    c = z.color
-                    elc.set_color([z.index], c.red(), c.green(), c.blue())
+            # play_zone_map termina em FINISH_PLAY: substitui a animacao em
+            # execucao sem gravar. set_color sozinho seria repintado pela
+            # animacao gravada. Ver docs/protocol.md.
+            elc.play_zone_map(mapping, effect=effect, duration=duration)
             return True
 
         if self._run(do) is not None:
@@ -496,20 +512,17 @@ class MainWindow(QMainWindow):
         if not self.confirm_write():
             return
 
-        effect = self.effect.currentData()
-        duration = self.duration.value()
+        effect, duration = self._effect_params()
+        mapping = self._zone_map()
+        dimmed = {z: (r // 2, g // 2, b // 2) for z, (r, g, b) in mapping.items()}
+        off = {z: (0, 0, 0) for z in mapping}
 
         def do(elc: Elc):
-            for z in self.zones:
-                if not z.enabled:
-                    continue
-                c = z.color
-                rgb = (c.red(), c.green(), c.blue())
-                for aid in (C.AC_CHARGED, C.AC_CHARGING, C.DEFAULT_POST_BOOT):
-                    if effect == C.EFFECT_MORPH:
-                        elc.store_morph(aid, [z.index], *rgb, duration=duration)
-                    else:
-                        elc.store_static(aid, [z.index], *rgb)
+            for aid in (C.AC_CHARGED, C.AC_CHARGING, C.DEFAULT_POST_BOOT):
+                elc.store_zone_map(aid, mapping, effect=effect, duration=duration)
+            elc.store_zone_map(C.DC_ON, dimmed, effect=effect, duration=duration)
+            for aid in (C.AC_SLEEP, C.DC_SLEEP):
+                elc.store_zone_map(aid, off)
             return True
 
         if self._run(do) is not None:

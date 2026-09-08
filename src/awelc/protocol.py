@@ -109,6 +109,17 @@ class Elc:
             f"{major:02x}{C.FINISH_SAVE:04x}{animation_id:04x}"
         )
 
+    def finish_play_animation(self, animation_id: int) -> bytearray:
+        """Encerra a montagem e TOCA a animacao, sem grava-la.
+
+        Contraparte de finish_save_animation. Nenhum dos projetos upstream
+        chama isto; ver docs/protocol.md.
+        """
+        major = _animation_major(animation_id)
+        return self.dev.command(
+            f"{major:02x}{C.FINISH_PLAY:04x}{animation_id:04x}"
+        )
+
     def set_default_animation(self, animation_id: int) -> bytearray:
         major = _animation_major(animation_id)
         return self.dev.command(
@@ -183,6 +194,94 @@ class Elc:
                 Action(C.EFFECT_MORPH, duration, tempo, b, r, g),
             ]
         )
+        self.finish_save_animation(animation_id)
+        self.set_default_animation(animation_id)
+
+    def _build_zone_map(
+        self,
+        zone_colors: dict[int, tuple[int, int, int]],
+        effect: int,
+        duration: int,
+        tempo: int,
+    ) -> None:
+        """Encadeia um START_SERIES + ADD_ACTION por grupo de cor.
+
+        Varias series cabem dentro de uma unica animacao; e assim que se
+        obtem cores diferentes por zona.
+        """
+        groups: dict[tuple[int, int, int], list[int]] = {}
+        for zone, rgb in sorted(zone_colors.items()):
+            groups.setdefault(rgb, []).append(zone)
+
+        for rgb, zones in groups.items():
+            self.start_series(zones)
+            if effect == C.EFFECT_MORPH:
+                r, g, b = rgb
+                self.add_actions(
+                    [
+                        Action(C.EFFECT_MORPH, duration, tempo, r, g, b),
+                        Action(C.EFFECT_MORPH, duration, tempo, g, b, r),
+                        Action(C.EFFECT_MORPH, duration, tempo, b, r, g),
+                    ]
+                )
+            else:
+                self.add_actions([Action(effect, duration, tempo, *rgb)])
+
+    def play_zone_map(
+        self,
+        zone_colors: dict[int, tuple[int, int, int]],
+        effect: int = C.EFFECT_COLOR,
+        duration: int = C.DURATION_MAX,
+        tempo: int = C.TEMPO_MIN,
+        animation_id: int = C.RUNNING_START,
+    ) -> None:
+        """Toca cores por zona AGORA, substituindo a animacao em execucao.
+
+        Ao contrario de set_color, isto vira a animacao corrente do
+        controlador, entao o motor de animacao nao repinta por cima. E ao
+        contrario de store_*, termina em FINISH_PLAY e nao em FINISH_SAVE,
+        portanto nao grava nada no armazenamento.
+
+        Verificado no G5 5590: set_color sozinho alterna com a animacao
+        gravada; esta sequencia fica firme. Ver docs/protocol.md.
+        """
+        if not zone_colors:
+            raise AwelcError("nenhuma zona informada")
+        self.remove_animation(animation_id)
+        self.start_new_animation(animation_id)
+        self._build_zone_map(zone_colors, effect, duration, tempo)
+        self.finish_play_animation(animation_id)
+
+    def play_transient(
+        self,
+        zones: Sequence[int],
+        r: int,
+        g: int,
+        b: int,
+        effect: int = C.EFFECT_COLOR,
+        duration: int = C.DURATION_MAX,
+        tempo: int = C.TEMPO_MIN,
+        animation_id: int = C.RUNNING_START,
+    ) -> None:
+        """Atalho de play_zone_map com uma cor unica para varias zonas."""
+        self.play_zone_map(
+            {z: (r, g, b) for z in zones}, effect, duration, tempo, animation_id
+        )
+
+    def store_zone_map(
+        self,
+        animation_id: int,
+        zone_colors: dict[int, tuple[int, int, int]],
+        effect: int = C.EFFECT_COLOR,
+        duration: int = C.DURATION_MAX,
+        tempo: int = C.TEMPO_MIN,
+    ) -> None:
+        """Grava cores por zona como animacao persistente do controlador."""
+        if not zone_colors:
+            raise AwelcError("nenhuma zona informada")
+        self.remove_animation(animation_id)
+        self.start_new_animation(animation_id)
+        self._build_zone_map(zone_colors, effect, duration, tempo)
         self.finish_save_animation(animation_id)
         self.set_default_animation(animation_id)
 

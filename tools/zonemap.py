@@ -3,11 +3,12 @@
 """Descobre o mapa fisico de zonas do teclado.
 
 Acende uma zona por vez e pausa, para o operador anotar qual pedaco do
-teclado acendeu. Usa SET_COLOR (0x27), que e volatil: nao grava animacao
-no controlador. Ao final apaga tudo.
+teclado acendeu. Usa play_zone_map (FINISH_PLAY), que substitui a animacao em execucao sem
+gravar nada. SET_COLOR sozinho seria repintado pela animacao do controlador.
+Ao final apaga tudo.
 
-ATENCAO: SET_COLOR e um comando de ESCRITA. Ele nao persiste animacoes,
-mas altera o estado atual da iluminacao.
+ATENCAO: sao comandos de ESCRITA. Nao persistem animacoes (a contagem
+gravada nao muda), mas alteram o estado atual da iluminacao.
 
 Uso:
     pkexec .venv/bin/python tools/zonemap.py [--zones 0,1,2,3] [--hold 4]
@@ -45,31 +46,30 @@ def main() -> int:
     print("=" * 58)
     print(f"zonas a testar : {zones}")
     print(f"tempo por zona : {args.hold}s")
-    print("comando        : SET_COLOR (0x27) - volatil, nao grava animacao\n")
+    print("comando        : FINISH_PLAY - transitorio, nao grava animacao\n")
 
     with AwelcDevice() as dev:
         elc = Elc(dev)
 
         print("apagando tudo antes de comecar...")
-        elc.set_color(zones, 0, 0, 0)
         elc.dim(zones, C.BRIGHTNESS_MIN)  # 0 = brilho total
+        elc.play_zone_map({z: (0, 0, 0) for z in zones})
         time.sleep(1.5)
 
         for zone in zones:
             label, (r, g, b) = PROBES[zone % len(PROBES)]
-            others = [z for z in zones if z != zone]
             print(f"  zona {zone}  ->  {label:9}  (demais apagadas)")
-            if others:
-                elc.set_color(others, 0, 0, 0)
-            elc.set_color([zone], r, g, b)
+            mapping = {z: (0, 0, 0) for z in zones}
+            mapping[zone] = (r, g, b)
+            elc.play_zone_map(mapping)
             time.sleep(args.hold)
 
         print("\ntodas as zonas juntas em branco...")
-        elc.set_color(zones, 255, 255, 255)
+        elc.play_zone_map({z: (255, 255, 255) for z in zones})
         time.sleep(args.hold)
 
         print("apagando.")
-        elc.set_color(zones, 0, 0, 0)
+        elc.play_zone_map({z: (0, 0, 0) for z in zones})
 
     print("\nAnote qual regiao do teclado acendeu em cada passo e registre")
     print("em docs/g5590.md.")

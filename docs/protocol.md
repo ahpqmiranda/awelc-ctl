@@ -126,6 +126,78 @@ REMOVE → START_NEW → START_SERIES(zonas) → ADD_ACTION(1..3 ações)
 
 Efeitos: `0x00` cor estática, `0x01` pulse, `0x02` morph.
 
+## O motor de animação sobrepõe SET_COLOR
+
+Este é o achado mais útil do projeto, e vale para qualquer um que tente usar
+este controlador.
+
+**Sintoma:** você manda `SET_COLOR` com a cor desejada, o teclado pisca a cor
+certa e volta ao padrão anterior. Reenviando em laço, ele alterna entre as duas.
+
+**Causa:** `SET_COLOR` (`0x27`) pinta os LEDs, mas **não substitui a animação em
+execução**. O motor de animação do controlador continua rodando e repinta no
+quadro seguinte. Os dois ficam disputando o LED.
+
+### Como isso foi comprovado
+
+O experimento que separa as hipóteses está em `tools/diag_revert.py`. Ele aplica
+a cor e **segura o dispositivo aberto**, sem reanexar o `usbhid`:
+
+- se revertesse só ao soltar → a culpa seria do ciclo detach/attach
+- se reverter com o dispositivo ainda aberto → é a animação repintando
+
+No G5 5590, observou-se **alternância entre a cor pedida e o branco padrão com o
+dispositivo aberto**, o que descarta o detach/attach e confirma o motor de
+animação. O branco vinha das animações gravadas pelo Alienware Command Center.
+
+### A solução: FINISH_PLAY
+
+A montagem de uma animação pode terminar de duas formas:
+
+| Encerramento | Efeito |
+|---|---|
+| `FINISH_SAVE` (`0x02`) | grava no armazenamento; persiste a reboot |
+| `FINISH_PLAY` (`0x03`) | **toca agora, sem gravar** |
+
+Terminar com `FINISH_PLAY` faz a animação montada virar a **animação corrente**,
+substituindo a que estava rodando. O motor de animação para de repintar porque
+agora é a nossa animação que ele está tocando.
+
+Sequência:
+
+```
+REMOVE(0xFFFF) → START_NEW(0xFFFF) → START_SERIES(zonas) → ADD_ACTION(...)
+               → FINISH_PLAY(0xFFFF)
+```
+
+O id `0xFFFF` é `RUNNING_START`, fora da faixa de energia, portanto usa
+`USER_ANIMATION`. **Não** se chama `SET_DEFAULT`, e **não** se chama
+`FINISH_SAVE` — por isso nada é gravado.
+
+Verificado no G5 5590: a contagem de animações permaneceu em 2 antes e depois,
+e a cor ficou firme, sem alternância. Implementado em `Elc.play_zone_map()`.
+
+### Nenhum projeto upstream usa isso
+
+Tanto o `G15kblight-cli` quanto o `Dell-G-Series-Controller` **têm**
+`finish_play_animation()` no `elc.py` e **nunca o chamam**. `RUNNING_START` e
+`RUNNING_FINISH` só aparecem em linhas comentadas. É código morto que resolvia
+um problema que os dois têm — ambos só conseguem trocar cor gravando
+permanentemente no controlador.
+
+### Cores diferentes por zona
+
+Várias séries cabem dentro de **uma** animação. Encadeando
+`START_SERIES` + `ADD_ACTION` uma vez por grupo de cor antes do encerramento,
+obtêm-se cores distintas por zona:
+
+```
+START_NEW → [START_SERIES(z_a) → ADD_ACTION(cor_a)]
+          → [START_SERIES(z_b) → ADD_ACTION(cor_b)] → FINISH_PLAY
+```
+
+`Elc._build_zone_map()` agrupa zonas de mesma cor para emitir o mínimo de séries.
+
 ## Zonas
 
 Zonas são uma lista de índices serializada no pacote:
@@ -159,6 +231,7 @@ Nenhum dos projetos upstream usa essa consulta.
 ## O que ainda não foi investigado
 
 - `SET_EVENT` (`0x25`) — propósito desconhecido
+- `PULSE` como efeito dentro de `FINISH_PLAY` — não exercitado
 - `RESET` (`0x28`) — provavelmente restaura padrão de fábrica; **não testado**
 - `SPI_FLASH` (`0xFF`) — acesso à flash; não tocar
 - efeito `PULSE` (`0x01`) — não exercitado

@@ -75,8 +75,13 @@ def cmd_color(args) -> int:
                 elc.store_static(aid, args.zones, 0, 0, 0)
             print(f"cor #{r:02x}{g:02x}{b:02x} gravada nas zonas {args.zones}")
         else:
-            elc.set_color(args.zones, r, g, b)
-            print(f"cor #{r:02x}{g:02x}{b:02x} aplicada nas zonas {args.zones} (nao persistente)")
+            # Animacao transitoria (FINISH_PLAY): substitui a animacao em
+            # execucao. SET_COLOR sozinho seria repintado por ela.
+            elc.play_transient(args.zones, r, g, b)
+            print(
+                f"cor #{r:02x}{g:02x}{b:02x} aplicada nas zonas {args.zones} "
+                "(volatil: some ao desligar)"
+            )
     return 0
 
 

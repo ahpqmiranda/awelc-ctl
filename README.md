@@ -25,6 +25,11 @@ ambos GPL-3.0 — mas mirando o Dell G15. Este aqui parte deles e acrescenta:
   CLIs existentes é que não expunham.
 - **Modo somente-leitura verificável.** `AwelcDevice(read_only=True)` recusa em
   tempo de execução qualquer comando fora da classe de consulta `0x20`.
+- **Pré-visualização que realmente funciona.** `SET_COLOR` sozinho é repintado
+  pelo motor de animação do controlador — a cor pisca e volta ao padrão. A
+  solução é encerrar a montagem com `FINISH_PLAY` em vez de `FINISH_SAVE`, o que
+  substitui a animação em execução sem gravar nada. Os dois projetos upstream
+  têm essa função no código e nunca a chamam.
 - **Protocolo documentado a partir de medição**, incluindo dois comandos que a
   documentação implica existirem e que este firmware simplesmente não tem.
 
@@ -110,7 +115,9 @@ firmware — o pior caso é reconfigurar a iluminação do zero.
 | Identificação do controlador | ✅ validado no G5 5590 |
 | Interface gráfica PySide6 | ✅ funcional |
 | Brilho (`DIMMING`) | ✅ validado no hardware |
-| Cor sólida (volátil e persistente) | ⚠️ implementado, não exercitado |
+| Cor volátil, uma ou várias zonas | ✅ validado no hardware |
+| Cores diferentes por zona | ✅ validado no hardware |
+| Cor persistente (`--persist`) | ⚠️ implementado, não exercitado |
 | Morph / fade | ⚠️ implementado, não exercitado |
 | Mapa físico de zonas | ❌ pendente — ver `tools/zonemap.py` |
 | Tecla de backlight do notebook | ❌ não corrigível em espaço de usuário |

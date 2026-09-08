@@ -63,6 +63,11 @@ DC_ON = 0x5F
 DC_LOW = 0x60
 DEFAULT_POST_BOOT = 0x61
 
+# Ids especiais fora da faixa normal. Os projetos upstream os declaram mas
+# nunca os usam (so aparecem em linhas comentadas). Ver docs/protocol.md.
+RUNNING_START = 0xFFFF
+RUNNING_FINISH = 0x00FF
+
 POWER_ANIMATION_RANGE = range(0x5B, 0x61)
 
 ANIMATION_NAMES = {

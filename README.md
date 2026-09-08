@@ -32,8 +32,10 @@ ambos GPL-3.0 — mas mirando o Dell G15. Este aqui parte deles e acrescenta:
 
 ```bash
 git clone <url> awelc-ctl && cd awelc-ctl
-python3 -m venv .venv && .venv/bin/pip install -e .
+uv venv && uv pip install -e ".[gui]"     # ou: python3 -m venv .venv && .venv/bin/pip install -e ".[gui]"
 ```
+
+Sem a extra `[gui]` você fica só com a linha de comando, sem depender do Qt.
 
 Para usar sem `sudo`, instale a regra udev:
 
@@ -45,7 +47,31 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 Sem ela, o dispositivo é `root:root` e todo comando falha com *"sem permissão"*.
 Alternativa pontual, sem tocar no sistema: `pkexec .venv/bin/awelc …`
 
-## Uso
+## Interface gráfica
+
+```bash
+awelc-gui        # ou: python -m awelc.gui
+```
+
+Três abas:
+
+- **Zonas e cor** — uma carta por zona, com liga/desliga e seletor de cor;
+  slider de brilho com chave geral; efeito (estático, fade/morph, pulse) e
+  duração do fade. Pré-visualização volátil enquanto você mexe, e um botão
+  separado para gravar no controlador.
+- **Animações** — as sete situações que o controlador reconhece (na tomada,
+  na bateria, suspenso, bateria fraca, pós-boot), cada uma com cor e efeito
+  próprios.
+- **Dispositivo** — firmware, plataforma, quantas animações estão gravadas, e
+  se este firmware permite lê-las de volta.
+
+Se faltar permissão, aparece uma faixa no topo com um botão que instala a regra
+udev via `pkexec` — o app em si nunca roda como root.
+
+A gravação pede confirmação explícita, explicando que é irreversível, com opção
+de não perguntar de novo.
+
+## Uso pela linha de comando
 
 ```bash
 awelc info                        # identifica o controlador (não escreve nada)
@@ -82,9 +108,10 @@ firmware — o pior caso é reconfigurar a iluminação do zero.
 | Recurso | Situação |
 |---|---|
 | Identificação do controlador | ✅ validado no G5 5590 |
+| Interface gráfica PySide6 | ✅ funcional |
+| Brilho (`DIMMING`) | ✅ validado no hardware |
 | Cor sólida (volátil e persistente) | ⚠️ implementado, não exercitado |
-| Brilho | ⚠️ implementado, não exercitado |
-| Morph | ⚠️ implementado, não exercitado |
+| Morph / fade | ⚠️ implementado, não exercitado |
 | Mapa físico de zonas | ❌ pendente — ver `tools/zonemap.py` |
 | Tecla de backlight do notebook | ❌ não corrigível em espaço de usuário |
 

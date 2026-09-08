@@ -4,20 +4,33 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "awelc-ctl"
-version = "0.1.0"
+version = "0.2.0"
 description = "Controle do backlight RGB Alienware AW-ELC (187c:0550) no Linux"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
 dependencies = ["pyusb>=1.2"]
 classifiers = [
   "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
   "Operating System :: POSIX :: Linux",
   "Topic :: System :: Hardware",
+  "Environment :: X11 Applications :: Qt",
 ]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.5"]
 
 [project.scripts]
 awelc = "awelc.cli:main"
 
+[project.gui-scripts]
+awelc-gui = "awelc.gui:main"
+
+[dependency-groups]
+dev = ["pytest>=7"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

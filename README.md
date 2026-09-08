@@ -115,22 +115,58 @@ firmware — o pior caso é reconfigurar a iluminação do zero.
 | Identificação do controlador | ✅ validado no G5 5590 |
 | Interface gráfica PySide6 | ✅ funcional |
 | Brilho (`DIMMING`) | ✅ validado no hardware |
-| Cor volátil, uma ou várias zonas | ✅ validado no hardware |
 | Cores diferentes por zona | ✅ validado no hardware |
-| Cor persistente (`--persist`) | ⚠️ implementado, não exercitado |
-| Morph / fade | ⚠️ implementado, não exercitado |
-| Mapa físico de zonas | ❌ pendente — ver `tools/zonemap.py` |
+| Cor aplicada sem ser repintada pela animação | ✅ o mecanismo funciona (ver ressalva abaixo) |
+| Estabilidade da cor ao longo do tempo | ⚠️ **inconsistente** — ver limitações |
+| Cor persistente (`--persist`) | ⚠️ implementado, nunca exercitado |
+| Efeitos (rainbow, breath, pulse) | ⚠️ implementados, semântica não resolvida |
+| Mapa físico de zonas | ❌ não documentado — ver `tools/zonemap.py` |
 | Tecla de backlight do notebook | ❌ não corrigível em espaço de usuário |
+
+## Limitações conhecidas
+
+Honestidade sobre o que não fechamos:
+
+**A cor às vezes pisca.** O mecanismo do `FINISH_PLAY` resolve a disputa com a
+animação gravada — isso está comprovado. Mas em observações posteriores, uma cor
+estática pelo mesmo caminho e com os mesmos parâmetros ora ficou firme, ora
+apresentou blink periódico. Há uma variável não controlada.
+
+O suspeito principal é o parâmetro `loop` do `START_SERIES`, fixado em `1` desde
+o upstream e nunca questionado por ninguém. Se ele for contagem de repetições, a
+animação termina e reinicia, o que produziria exatamente o blink observado. Não
+chegamos a concluir o teste.
+
+**A semântica de `tempo` e `duration` é desconhecida.** O upstream fixa
+`tempo=TEMPO_MIN` (`0x01`) sem explicar. Variamos entre 1, 64 e 255 sem
+conseguir mapear o resultado com confiança.
+
+**Os nomes dos efeitos podem estar errados.** O que o upstream chama de "morph"
+é rotação dos canais RGB, que na prática produz um ciclo de cores — o *rainbow*
+do Alienware Command Center, não um fade. O efeito `PULSE` (`0x01`) nunca foi
+exercitado por ninguém e é candidato a ser o *breath* do ACC (pulsa no brilho
+máximo, decai até apagar, volta), mas isso não foi confirmado.
+
+`tools/diag_effects.py` e `tools/diag_revert.py` estão no repositório para quem
+quiser retomar essa investigação.
 
 Sobre a tecla: ela emite um evento WMI (`type 0x0012`) que o `dell_wmi` descarta
 antes de chegar ao evdev. Não dá para mapear por `hwdb` nem `setkeycodes` —
 exigiria patch no kernel. Contorno: vincular um atalho do desktop a `awelc off`.
+
+## Atalho no menu
+
+```bash
+cp packaging/awelc-gui.desktop ~/.local/share/applications/
+update-desktop-database ~/.local/share/applications
+```
 
 ## Documentação
 
 - [`docs/protocol.md`](docs/protocol.md) — o protocolo ELC medido, comando a comando
 - [`docs/g5590.md`](docs/g5590.md) — particularidades do modelo, permissões, mapa de zonas
 - [`docs/probe-g5590-firmware-1.1.7.json`](docs/probe-g5590-firmware-1.1.7.json) — respostas cruas da sondagem inicial
+- [`CHANGELOG.md`](CHANGELOG.md) — o que mudou e o que ficou em aberto
 
 ## Licença
 

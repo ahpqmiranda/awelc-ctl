@@ -35,6 +35,23 @@ ambos GPL-3.0 — mas mirando o Dell G15. Este aqui parte deles e acrescenta:
 
 ## Instalação
 
+### Debian, Ubuntu, Pop!_OS e derivados
+
+Baixe o `.deb` da [página de releases](https://github.com/ahpqmiranda/awelc-ctl/releases):
+
+```bash
+sudo apt install ./awelc-ctl_0.3.0_all.deb
+```
+
+Instala a biblioteca, a CLI, a regra udev e o atalho do menu, e recarrega o
+udev sozinho. Desinstala com `sudo apt remove awelc-ctl`.
+
+A interface gráfica precisa do PySide6. No Ubuntu 24.04+ ele vem do repositório
+(`Recommends`, instalado junto); no 22.04 ainda não existe empacotado, então
+use `pip install --user PySide6`. A linha de comando funciona sem ele.
+
+### A partir do código
+
 ```bash
 git clone <url> awelc-ctl && cd awelc-ctl
 uv venv && uv pip install -e ".[gui]"     # ou: python3 -m venv .venv && .venv/bin/pip install -e ".[gui]"
@@ -160,7 +177,15 @@ Sobre a tecla: ela emite um evento WMI (`type 0x0012`) que o `dell_wmi` descarta
 antes de chegar ao evdev. Não dá para mapear por `hwdb` nem `setkeycodes` —
 exigiria patch no kernel. Contorno: vincular um atalho do desktop a `awelc off`.
 
-## Atalho no menu
+## Gerar o pacote
+
+```bash
+./packaging/build-deb.sh     # -> dist/awelc-ctl_<versão>_all.deb
+```
+
+Precisa só de `dpkg-deb` e `fakeroot`.
+
+## Atalho no menu (instalação a partir do código)
 
 ```bash
 cp packaging/awelc-gui.desktop ~/.local/share/applications/

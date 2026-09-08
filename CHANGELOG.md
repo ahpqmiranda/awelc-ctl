@@ -14,6 +14,7 @@ projetos existentes miravam o Dell G15.
 - Regra udev, dispensando `sudo`/`pkexec` no uso diário
 - Ferramentas de diagnóstico em `tools/`
 - 48 testes, sem dependência de hardware
+- Pacote `.deb` (`packaging/build-deb.sh`), com regra udev e atalho do menu
 
 ### Descobertas de protocolo
 

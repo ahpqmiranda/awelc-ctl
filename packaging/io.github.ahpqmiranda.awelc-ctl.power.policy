@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Autoriza o helper de energia do awelc-ctl.
+
+  O usuário da sessão local ativa roda sem senha, como no system76-power.
+  O helper só aceita uma lista fechada de operações (modo térmico, turbo, SMT e
+  carga da bateria), cada uma validada; ver src/awelc/power_helper.py.
+  Sessões remotas ou inativas pedem senha de administrador.
+
+  Instalar:
+    sudo install -Dm0755 src/awelc/power_helper.py /usr/libexec/awelc-ctl/awelc-power-helper
+    sudo install -m0644 packaging/io.github.ahpqmiranda.awelc-ctl.power.policy /usr/share/polkit-1/actions/
+-->
+<policyconfig>
+  <vendor>awelc-ctl</vendor>
+  <vendor_url>https://github.com/ahpqmiranda/awelc-ctl</vendor_url>
+
+  <action id="io.github.ahpqmiranda.awelc-ctl.power">
+    <description>Change thermal mode, turbo, SMT and battery charging</description>
+    <description xml:lang="pt_BR">Alterar modo térmico, turbo, multithread e carga da bateria</description>
+    <message>Authentication is required to change power settings</message>
+    <message xml:lang="pt_BR">É preciso autenticar para alterar as configurações de energia</message>
+    <icon_name>preferences-system-power</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/awelc-ctl/awelc-power-helper</annotate>
+  </action>
+</policyconfig>

@@ -28,11 +28,18 @@ install -d "$STAGE/usr/bin"
 install -d "$STAGE/usr/lib/udev/rules.d"
 install -d "$STAGE/usr/share/applications"
 install -d "$STAGE/usr/share/doc/$PKG"
+install -d "$STAGE/usr/libexec/$PKG"
+install -d "$STAGE/usr/share/polkit-1/actions"
 
 # --- conteúdo -----------------------------------------------------------
 install -m 0644 "$ROOT"/src/awelc/*.py "$STAGE/usr/lib/python3/dist-packages/awelc/"
 install -m 0644 "$ROOT/udev/60-awelc.rules" "$STAGE/usr/lib/udev/rules.d/"
 install -m 0644 "$ROOT/packaging/awelc-gui.desktop" "$STAGE/usr/share/applications/"
+# Helper de energia: roda como root via pkexec, por isso fica num caminho de
+# root e não é importado do dist-packages.
+install -m 0755 "$ROOT/src/awelc/power_helper.py" "$STAGE/usr/libexec/$PKG/awelc-power-helper"
+install -m 0644 "$ROOT/packaging/io.github.ahpqmiranda.awelc-ctl.power.policy" \
+    "$STAGE/usr/share/polkit-1/actions/"
 install -m 0644 "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$ROOT/CONTRIBUTING.md" \
     "$STAGE/usr/share/doc/$PKG/"
 
@@ -67,16 +74,22 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: all
-Depends: python3 (>= 3.10), python3-usb
-Recommends: python3-pyside6
-Suggests: policykit-1
+Depends: python3 (>= 3.10), python3-usb, policykit-1
+Recommends: python3-pyside6, system76-power
 Installed-Size: $INSTALLED_SIZE
 Maintainer: Alan Miranda <ahpqmiranda@users.noreply.github.com>
 Homepage: https://github.com/ahpqmiranda/awelc-ctl
-Description: Controle do backlight RGB Alienware AW-ELC no Linux
+Description: Central de controle Dell G-Series/Alienware: energia e backlight
  Controla cor, zonas e brilho do backlight de teclados que usam o
  controlador USB Alienware AW-ELC (187c:0550), presente em vários Dell
  G3, G5, G7, G15, G16 e Alienware.
+ .
+ Também gerencia energia: modos prontos (silencioso, equilibrado,
+ desempenho máximo) combinando o perfil do system76-power, o modo
+ térmico do firmware Dell e o Turbo Boost, além do modo de carga da
+ bateria, e mostra temperaturas, ventoinhas e GPU. As escritas que
+ exigem root passam por um helper com lista fechada de operações,
+ liberado por polkit para a sessão local ativa.
  .
  Esses teclados não são expostos como LED do kernel: o controlador é um
  dispositivo USB HID separado, sem driver. Este pacote traz uma

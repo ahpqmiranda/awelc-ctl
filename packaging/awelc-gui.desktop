@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=Backlight do Teclado
-GenericName=Controle RGB Alienware AW-ELC
-Comment=Controla cor, zonas e brilho do backlight do teclado
+Name=Central de Controle G-Series
+GenericName=Energia, temperaturas e backlight
+Comment=Modo de desempenho, monitor térmico e backlight RGB do teclado
 Exec=awelc-gui
-Icon=input-keyboard
+Icon=preferences-system-power
 Terminal=false
 StartupNotify=true
 StartupWMClass=awelc-gui
 Categories=Settings;HardwareSettings;
-Keywords=teclado;backlight;rgb;led;keyboard;
+Keywords=energia;desempenho;temperatura;ventoinha;bateria;teclado;backlight;rgb;alienware;power;performance;

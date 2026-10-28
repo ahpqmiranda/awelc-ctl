@@ -11,7 +11,9 @@ Uso:
 """
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
@@ -26,13 +28,19 @@ from awelc.gui import MainWindow  # noqa: E402
 DEMO_COLORS = ["#ff2d55", "#ff9500", "#30d158", "#0a84ff"]
 
 SHOTS = [
-    (0, "gui-zonas.png"),
-    (1, "gui-animacoes.png"),
-    (2, "gui-dispositivo.png"),
+    (0, "gui-energia.png"),
+    (1, "gui-monitor.png"),
+    (2, "gui-zonas.png"),
+    (3, "gui-animacoes.png"),
+    (4, "gui-dispositivo.png"),
 ]
 
 
 def main() -> int:
+    # Config isolada: o print nao pode ler nem gravar os perfis e as cores
+    # recentes reais de quem roda o script.
+    os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="awelc-shots-")
+
     out_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "docs/img")
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -46,7 +54,11 @@ def main() -> int:
         card.color_btn.setColor(QColor(hexcolor))
         card.state.color = QColor(hexcolor)
 
-    win.resize(820, 600)
+    win.profile_store.save(win._current_profile("Pôr do sol"))
+    win._reload_profiles("Pôr do sol")
+    win.kb_view.update()
+
+    win.resize(820, 700)
     win.show()
 
     tabs = win.centralWidget().layout().itemAt(1).widget()
@@ -61,8 +73,9 @@ def main() -> int:
             print(f"  {path}  ({size // 1024} KB)  aba '{tabs.tabText(index)}'")
         app.quit()
 
-    # Deixa a janela assentar antes de capturar.
-    QTimer.singleShot(900, capture)
+    # Deixa a janela assentar e a primeira leitura de energia chegar
+    # (o nvidia-smi leva perto de um segundo).
+    QTimer.singleShot(2500, capture)
     return app.exec()
 
 

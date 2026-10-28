@@ -1,5 +1,100 @@
 # Changelog
 
+## Não lançado
+
+Aba "Zonas e cor" mais prática, e perfis de iluminação salvos em disco.
+
+### Adicionado
+
+- **Perfis**: salvar, carregar, excluir, importar e exportar a configuração da
+  aba Zonas e cor (cor e liga/desliga de cada zona, efeito, duração e brilho).
+  Ficam em `~/.config/awelc-ctl/profiles/<nome>.json`. Carregar atualiza a
+  tela e, com a pré-visualização ligada, aplica no teclado; não grava no
+  controlador. Lógica em `awelc.profiles`, sem dependência de Qt
+- **Atalhos de cor**: "cor da anterior" em cada zona e, para todas de uma vez,
+  cor única, arco-íris, degradê (da primeira à última zona) e espelhar
+- **Cores recentes**: as últimas 16 cores usadas entram nos slots
+  personalizados do seletor e persistem entre sessões. Botão direito no botão
+  de cor copia o hex ou cola um hex da área de transferência
+- **Teclado ilustrativo** no topo da aba, com as zonas coloridas; clicar numa
+  faixa abre o seletor daquela zona
+- 10 testes novos: perfis, presets de cor e leitura do modo térmico efetivo
+
+### Corrigido
+
+- O modo térmico aparecia como "Misto" (e a GUI avisava de handlers em
+  discordância) quando a agregada reportava `custom` só porque `alienware-wmi`
+  chama de `balanced-performance` o que `dell-pc` chama de `performance`.
+  Agora esse par é lido como `performance`: o preset "Desempenho máximo" volta
+  a ser reconhecido e a mensagem de discordância só aparece quando os handlers
+  divergem de fato. O `awelc power status` mostra a agregada entre parênteses
+
+### Validado
+
+- Escrita real do modo térmico pelo helper com pkexec, no G5 5590
+  (2026-10-28): `balanced` deixou agregada e os dois handlers em `balanced`;
+  `performance` restaurou o par original `balanced-performance` +
+  `performance`. Turbo, SMT e carga da bateria seguem só contra sysfs falso
+
+### Decisões
+
+- O desenho do teclado usa quatro faixas verticais **só como ilustração**: o
+  mapa físico das zonas do G5 5590 continua sem confirmação
+  (`docs/g5590.md`). Ele passa a refletir a realidade quando o `zonemap.py`
+  for rodado e a tabela preenchida
+- O nome do perfil vira nome de arquivo sem barras nem caracteres especiais,
+  então um nome como `../x` não escreve fora da pasta de perfis
+
+### Não validado
+
+- Carregar perfil com pré-visualização ligada no teclado real. A GUI foi
+  exercitada só sem tela (offscreen), sem o controlador
+
+## 0.4.0 — 2026-10-26
+
+O backlight vira uma central de controle: energia, modo térmico e monitor.
+
+### Adicionado
+
+- Módulo `awelc.power`: leitura de modo térmico, turbo, SMT, governor/EPP,
+  frequência, ventoinhas, temperaturas, bateria e GPU (via `nvidia-smi`)
+- Três modos prontos — silencioso, equilibrado, desempenho máximo —
+  combinando perfil do `system76-power`, modo térmico do firmware e turbo
+- Monitor: a CPU é identificada pelo modelo (como a GPU), mostra o uso total e
+  o uso de cada thread, e o resumo do pacote fica embaixo dos gráficos. Threads
+  desligadas pelo SMT saem da lista
+- Monitor: razões de limitação de clock da GPU (limite de potência, térmico por
+  software ou hardware, freio de potência), em `awelc power status` e embaixo do
+  grupo GPU, com explicação no tooltip. "Ocioso" aparece como informativo, não
+  como limitação
+- Thunderbolt somente leitura (`awelc power status` e aba Energia): geração,
+  nível de segurança, dispositivos e autorização, e papéis da porta USB-C
+- CLI `awelc power`: `status`, `preset`, `system`, `thermal`, `turbo`, `smt`,
+  `charge`, `install`
+- Abas **Energia** e **Monitor** na GUI, que passa a abrir nelas
+- Monitor com temperatura e clock **por núcleo físico** (threads agrupadas
+  pela topologia) e GPU com VRAM usada/total e clocks de núcleo e memória;
+  os mesmos dados no `awelc power status`
+- Helper privilegiado `awelc-power-helper` com política polkit; entra no
+  `.deb` em `/usr/libexec/awelc-ctl/`
+- 24 testes contra sysfs falso, incluindo validação do helper
+
+### Decisões
+
+- **Sem controle de ventoinha.** `fanN_boost` é recusado pelo firmware e o PWM
+  manual rende +1 RPM — medido no awcc-fanctl. A ventoinha responde ao modo
+  térmico.
+- **Modo térmico pela interface agregada** (`/sys/firmware/acpi/platform_profile`),
+  nunca por um handler isolado: gravar só no `alienware-wmi` deixa o
+  `dell-pc` discordando, que é a origem do estado `custom`.
+- O preset aplica o perfil do `system76-power` antes do modo térmico, porque
+  o primeiro reescreve o segundo.
+
+### Não validado
+
+- Escrita real como root pelo helper (modo térmico, turbo, carga). Os testes
+  cobrem a lógica contra um sysfs falso; falta exercitar no hardware.
+
 ## 0.3.0 — 2026-09-07
 
 Primeira versão utilizável. Antes disso, o backlight RGB do Dell G5 5590

@@ -6,6 +6,11 @@ direto com o controlador USB **AW-ELC `187c:0550`**.
 Escrito e validado num **Dell G5 5590** — modelo que os projetos existentes não
 cobriam.
 
+Desde a 0.4.0 é também uma **central de controle** no espírito do Alienware
+Command Center: modos de energia prontos, modo térmico do firmware, Turbo Boost, multithread (SMT),
+carga da bateria e monitor de temperaturas, ventoinhas e GPU. Ver
+[Energia e desempenho](#energia-e-desempenho).
+
 ## Por que existe
 
 O RGB desses teclados não é um LED do kernel. É um dispositivo USB HID separado,
@@ -40,11 +45,11 @@ ambos GPL-3.0 — mas mirando o Dell G15. Este aqui parte deles e acrescenta:
 Baixe o `.deb` da [página de releases](https://github.com/ahpqmiranda/awelc-ctl/releases):
 
 ```bash
-sudo apt install ./awelc-ctl_0.3.0_all.deb
+sudo apt install ./awelc-ctl_0.4.0_all.deb
 ```
 
-Instala a biblioteca, a CLI, a regra udev e o atalho do menu, e recarrega o
-udev sozinho. Desinstala com `sudo apt remove awelc-ctl`.
+Instala a biblioteca, a CLI, a regra udev, o atalho do menu e o helper de
+energia com sua política polkit, e recarrega o udev sozinho. Desinstala com `sudo apt remove awelc-ctl`.
 
 A interface gráfica precisa do PySide6. No Ubuntu 24.04+ ele vem do repositório
 (`Recommends`, instalado junto); no 22.04 ainda não existe empacotado, então
@@ -69,18 +74,113 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 Sem ela, o dispositivo é `root:root` e todo comando falha com *"sem permissão"*.
 Alternativa pontual, sem tocar no sistema: `pkexec .venv/bin/awelc …`
 
+## Energia e desempenho
+
+### Modos prontos
+
+| Modo | system76-power | Modo térmico | Turbo |
+|---|---|---|---|
+| **Silencioso** | `Battery` | `quiet` | desligado |
+| **Equilibrado** | `Balanced` | `balanced` | ligado |
+| **Desempenho máximo** | `Performance` | `performance` | ligado |
+
+```bash
+awelc power status               # estado atual (não escreve nada)
+awelc power preset desempenho    # silencioso | equilibrado | desempenho
+awelc power thermal performance  # só o modo térmico do firmware
+awelc power turbo off
+awelc power smt off          # multithread (Hyper-Threading), sem ir à BIOS
+awelc power charge Custom --start 50 --end 80
+```
+
+O perfil do `system76-power` vai **antes** do modo térmico. Ao trocar de
+perfil, o `system76-power` também mexe no `platform_profile`, e nesse
+movimento deixa os dois handlers do firmware discordando: medido em
+2026-10-26, `Performance` deixou `alienware-wmi` em `balanced-performance` e
+`dell-pc` em `performance`, e a interface agregada passou a reportar `custom`.
+O preset grava o modo térmico por cima, pela interface agregada, e realinha os
+dois.
+
+Esse `custom` **não é discordância real**: é só diferença de nome. Gravar
+`performance` na agregada produz exatamente esse par (reproduzido em
+2026-10-28), e `awelc power status` e a GUI mostram "Desempenho". "Misto" fica
+para quando os handlers discordam de verdade, como `quiet` contra `performance`.
+
+### As ventoinhas não têm controle — e isso é medido, não descuido
+
+Não há botão de ventoinha. O projeto irmão
+`awcc-fanctl` mediu as três interfaces neste modelo:
+
+| Interface | Resultado |
+|---|---|
+| `fanN_boost` (`alienware_wmi`) | o firmware recusa toda escrita (`EBADRQC`) |
+| `pwmN` (`dell_smm`) | manual em 255 rendeu +1 RPM sobre a BIOS |
+| `platform_profile` | funciona — de ≈4120 RPM (`cool`) a ≈4930 RPM (`performance`) |
+
+O modo térmico governa o **limite de potência da CPU**; a ventoinha responde
+ao calor resultante. É por isso que a aba Energia mostra, ao lado de cada modo,
+a rotação e a temperatura medidas sob carga.
+
+### O que exige root, e como
+
+Modo térmico, turbo, SMT e carga da bateria são escritas em sysfs de root. Elas
+passam por um helper pequeno, [`power_helper.py`](src/awelc/power_helper.py):
+
+- só biblioteca padrão, rodando com `/usr/bin/python3 -I`;
+- lista fechada de operações (`thermal`, `turbo`, `smt`, `charge-type`,
+  `charge-thresholds`), com todos os argumentos validados **antes** da
+  primeira escrita;
+- nenhum caminho vem da linha de comando — os atributos são achados pelo nome
+  do driver.
+
+Instalado em `/usr/libexec/awelc-ctl/awelc-power-helper` e liberado pela ação
+polkit `io.github.ahpqmiranda.awelc-ctl.power`: **sem senha para a sessão local
+ativa**, com senha de administrador para sessões remotas ou inativas. O perfil
+do sistema não passa pelo helper — o `system76-power` já aceita a chamada do
+usuário pelo DBus.
+
+Instalação a partir do código (o `.deb` já faz isso):
+
+```bash
+awelc power install     # imprime o comando; ou o botão na aba Energia
+```
+
+O modo térmico, o turbo e o SMT voltam ao padrão no reboot. O **modo de carga da
+bateria é gravado na BIOS** e persiste, inclusive no Windows.
+
 ## Interface gráfica
 
 ```bash
 awelc-gui        # ou: python -m awelc.gui
 ```
 
-Três abas:
+Abas de energia:
+
+- **Energia** — os três modos prontos, ajuste fino (perfil do sistema, modo
+  térmico, turbo, multithread), carga da bateria e o estado do Thunderbolt
+  (somente leitura). Avisa quando os handlers do firmware
+  discordam.
+- **Monitor** — atualizado a cada 2 s:
+  - **CPU por núcleo físico:** temperatura (`coretemp`) e clock. O clock do
+    núcleo é o da thread mais rápida entre as duas que ele roda; o clock de
+    cada thread aparece ao passar o mouse sobre o nome do núcleo.
+  - **GPU:** uso, VRAM usada/total, clock do núcleo e da memória (escalados
+    pelo máximo que o `nvidia-smi` reporta), potência e temperatura.
+  - Ventoinhas, temperaturas do EC e do SSD, e bateria.
+
+![Aba de energia](docs/img/gui-energia.png)
+
+![Aba de monitor](docs/img/gui-monitor.png)
+
+Abas do backlight:
 
 - **Zonas e cor** — uma carta por zona, com liga/desliga e seletor de cor;
-  slider de brilho com chave geral; efeito (estático, fade/morph, pulse) e
-  duração do fade. Pré-visualização volátil enquanto você mexe, e um botão
-  separado para gravar no controlador.
+  teclado ilustrativo (as faixas ainda não refletem o mapa físico); atalhos
+  de cor (cor única, arco-íris, degradê, espelhar, copiar da zona anterior) e
+  cores recentes; **perfis** salvos em `~/.config/awelc-ctl/profiles/`, com
+  importar e exportar `.json`; slider de brilho com chave geral; efeito
+  (estático, fade/morph, pulse) e duração do fade. Pré-visualização volátil
+  enquanto você mexe, e um botão separado para gravar no controlador.
 - **Animações** — as sete situações que o controlador reconhece (na tomada,
   na bateria, suspenso, bateria fraca, pós-boot), cada uma com cor e efeito
   próprios.
@@ -145,6 +245,11 @@ firmware — o pior caso é reconfigurar a iluminação do zero.
 | Efeitos (rainbow, breath, pulse) | ⚠️ implementados, semântica não resolvida |
 | Mapa físico de zonas | ❌ não documentado — ver `tools/zonemap.py` |
 | Tecla de backlight do notebook | ❌ não corrigível em espaço de usuário |
+| Leitura de energia e monitor | ✅ validado no G5 5590 |
+| Perfil do system76-power | ✅ validado no G5 5590 |
+| Modo térmico (escrita pelo helper) | ✅ validado no G5 5590: `balanced` e `performance` gravados via pkexec e lidos de volta |
+| Helper de energia (turbo, SMT, carga) | ⚠️ testado contra sysfs falso; escrita real como root ainda não exercitada |
+| Controle de ventoinha | ❌ não existe neste firmware — ver `awcc-fanctl` |
 
 ## Limitações conhecidas
 

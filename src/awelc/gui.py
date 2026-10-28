@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Interface grafica PySide6 para o controlador AW-ELC."""
+"""Central de controle PySide6: energia, monitor e backlight AW-ELC."""
 from __future__ import annotations
 
 import subprocess
@@ -7,17 +7,19 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSettings, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPalette, QPixmap
+from PySide6.QtCore import QRectF, Qt, QSettings, QTimer, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QColorDialog, QComboBox, QFormLayout, QFrame,
-    QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-    QPushButton, QScrollArea, QSlider, QSpinBox, QStatusBar, QTabWidget,
-    QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QColorDialog, QComboBox, QFileDialog, QFormLayout,
+    QFrame, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel,
+    QMainWindow, QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
+    QSlider, QSpinBox, QStatusBar, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from . import constants as C
 from .device import AwelcDevice, AwelcError, DeviceNotFound, PermissionDenied
+from . import profiles as P
+from .power_gui import MonitorTab, PowerTab, StatusPoller
 from .protocol import Elc
 
 UDEV_RULE = Path(__file__).resolve().parent.parent.parent / "udev" / "60-awelc.rules"
@@ -51,6 +53,28 @@ def swatch(color: QColor, size: int = 24) -> QIcon:
     return QIcon(pm)
 
 
+MAX_RECENT = 16
+
+
+def recent_colors() -> list[str]:
+    raw = QSettings("awelc-ctl", "gui").value("recent_colors", [])
+    if isinstance(raw, str):
+        raw = [raw]
+    out = []
+    for c in raw or []:
+        try:
+            out.append(P.normalize_hex(str(c)))
+        except P.ProfileError:
+            continue
+    return out
+
+
+def push_recent(color: QColor) -> None:
+    hexc = color.name().lower()
+    cur = [c for c in recent_colors() if c != hexc]
+    QSettings("awelc-ctl", "gui").setValue("recent_colors", [hexc] + cur[:MAX_RECENT - 1])
+
+
 # ---------------------------------------------------------------- estado
 
 @dataclass
@@ -71,7 +95,10 @@ class ColorButton(QPushButton):
         super().__init__(parent)
         self._color = QColor(color)
         self.setMinimumWidth(120)
-        self.clicked.connect(self._pick)
+        self.setToolTip("Clique para escolher; botão direito: copiar/colar hex")
+        self.clicked.connect(self.pick)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._menu)
         self._refresh()
 
     def color(self) -> QColor:
@@ -85,15 +112,38 @@ class ColorButton(QPushButton):
         self.setIcon(swatch(self._color))
         self.setText(self._color.name().upper())
 
-    def _pick(self) -> None:
+    def _set_and_emit(self, c: QColor) -> None:
+        self.setColor(c)
+        push_recent(c)
+        self.colorChanged.emit(c)
+
+    def pick(self) -> None:
+        # Cores recentes entram nos slots "personalizados" do seletor; o campo
+        # HTML do proprio dialogo ja aceita hex.
+        for i, hexc in enumerate(recent_colors()[:MAX_RECENT]):
+            QColorDialog.setCustomColor(i, QColor(hexc))
         c = QColorDialog.getColor(self._color, self, "Escolher cor da zona")
         if c.isValid():
-            self.setColor(c)
-            self.colorChanged.emit(c)
+            self._set_and_emit(c)
+
+    def _menu(self, pos) -> None:
+        menu = QMenu(self)
+        copy = menu.addAction(f"Copiar {self._color.name().upper()}")
+        paste = menu.addAction("Colar hex")
+        act = menu.exec(self.mapToGlobal(pos))
+        if act is copy:
+            QApplication.clipboard().setText(self._color.name().upper())
+        elif act is paste:
+            try:
+                hexc = P.normalize_hex(QApplication.clipboard().text())
+            except P.ProfileError:
+                return
+            self._set_and_emit(QColor(hexc))
 
 
 class ZoneCard(QGroupBox):
     changed = Signal()
+    copyPrevious = Signal(int)
 
     def __init__(self, state: ZoneState, parent=None):
         super().__init__(f"Zona {state.index}", parent)
@@ -104,6 +154,12 @@ class ZoneCard(QGroupBox):
         lay = QVBoxLayout(self)
         self.color_btn = ColorButton(state.color)
         lay.addWidget(self.color_btn)
+
+        if state.index > 0:
+            prev = QPushButton("◄ cor da anterior")
+            prev.setToolTip(f"Copia a cor da zona {state.index - 1}")
+            prev.clicked.connect(lambda: self.copyPrevious.emit(self.state.index))
+            lay.addWidget(prev)
 
         self.hint = QLabel("região não mapeada")
         self.hint.setEnabled(False)
@@ -123,6 +179,73 @@ class ZoneCard(QGroupBox):
 
     def set_region(self, text: str) -> None:
         self.hint.setText(text)
+
+    def refresh(self) -> None:
+        """Relê o estado (sem emitir sinais) depois de mudança externa."""
+        self.blockSignals(True)
+        self.setChecked(self.state.enabled)
+        self.blockSignals(False)
+        self.color_btn.setColor(self.state.color)
+
+
+class KeyboardView(QWidget):
+    """Desenho ilustrativo do teclado com as zonas coloridas.
+
+    A posicao real das zonas neste modelo NAO foi confirmada (ver
+    docs/g5590.md); as faixas verticais sao so uma representacao. Clicar numa
+    faixa abre o seletor de cor daquela zona.
+    """
+
+    zoneClicked = Signal(int)
+    ROWS, COLS = 6, 20
+
+    def __init__(self, zones: list[ZoneState], parent=None):
+        super().__init__(parent)
+        self.zones = zones
+        self.setMinimumHeight(130)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Clique numa faixa para escolher a cor da zona")
+
+    def _board(self) -> QRectF:
+        return QRectF(6, 6, self.width() - 12, self.height() - 30)
+
+    def _zone_at_x(self, x: float) -> int:
+        b = self._board()
+        n = len(self.zones)
+        frac = min(max((x - b.left()) / max(b.width(), 1), 0.0), 0.9999)
+        return int(frac * n)
+
+    def mousePressEvent(self, ev) -> None:
+        if ev.button() == Qt.LeftButton:
+            self.zoneClicked.emit(self.zones[self._zone_at_x(ev.position().x())].index)
+
+    def paintEvent(self, _ev) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        b = self._board()
+        p.setPen(QPen(QColor("#555"), 1))
+        p.setBrush(QColor("#1b1b1f"))
+        p.drawRoundedRect(b, 8, 8)
+
+        n = len(self.zones)
+        pad, gap = 8.0, 3.0
+        kw = (b.width() - 2 * pad - gap * (self.COLS - 1)) / self.COLS
+        kh = (b.height() - 2 * pad - gap * (self.ROWS - 1)) / self.ROWS
+        p.setPen(Qt.NoPen)
+        for r in range(self.ROWS):
+            for c in range(self.COLS):
+                st = self.zones[min(int(c / self.COLS * n), n - 1)]
+                col = QColor(st.color) if st.enabled else QColor("#2c2c32")
+                p.setBrush(col)
+                p.drawRoundedRect(QRectF(b.left() + pad + c * (kw + gap),
+                                         b.top() + pad + r * (kh + gap), kw, kh), 3, 3)
+
+        p.setPen(self.palette().text().color())
+        zw = b.width() / n
+        for i, st in enumerate(self.zones):
+            p.drawText(QRectF(b.left() + i * zw, b.bottom() + 3, zw, 18),
+                       Qt.AlignCenter, f"Zona {st.index}" + ("" if st.enabled else " (off)"))
 
 
 class PermissionBanner(QFrame):
@@ -191,8 +314,8 @@ class AnimationRow(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("awelc — backlight do teclado")
-        self.resize(760, 620)
+        self.setWindowTitle("awelc — central de controle")
+        self.resize(780, 680)
         self.settings = QSettings("awelc-ctl", "gui")
 
         self.zones = [
@@ -212,15 +335,20 @@ class MainWindow(QMainWindow):
         self.banner.hide()
         root.addWidget(self.banner)
 
+        self.setStatusBar(QStatusBar())
+        self.poller = StatusPoller(self)
+
         tabs = QTabWidget()
+        tabs.addTab(PowerTab(self.poller, self.statusBar().showMessage), "Energia")
+        tabs.addTab(MonitorTab(self.poller), "Monitor")
         tabs.addTab(self._build_zones_tab(), "Zonas e cor")
         tabs.addTab(self._build_animations_tab(), "Animações")
         tabs.addTab(self._build_device_tab(), "Dispositivo")
         root.addWidget(tabs, 1)
 
         self.setCentralWidget(central)
-        self.setStatusBar(QStatusBar())
         self.refresh_device()
+        self.poller.start()
 
     # -- construcao das abas ---------------------------------------------
 
@@ -228,14 +356,60 @@ class MainWindow(QMainWindow):
         w = QWidget()
         lay = QVBoxLayout(w)
 
+        # perfis
+        pbox = QGroupBox("Perfis")
+        pl = QHBoxLayout(pbox)
+        self.profile_store = P.ProfileStore()
+        self.profile_combo = QComboBox()
+        self.profile_combo.setMinimumWidth(160)
+        pl.addWidget(self.profile_combo, 1)
+        for text, slot, tip in (
+            ("Carregar", self.load_profile, "Aplica o perfil escolhido à tela"),
+            ("Salvar como…", self.save_profile, "Guarda as zonas, efeito e brilho atuais"),
+            ("Excluir", self.delete_profile, None),
+            ("Importar…", self.import_profile, "Lê um perfil .json"),
+            ("Exportar…", self.export_profile, "Salva o perfil escolhido em um .json"),
+        ):
+            b = QPushButton(text)
+            if tip:
+                b.setToolTip(tip)
+            b.clicked.connect(slot)
+            pl.addWidget(b)
+        lay.addWidget(pbox)
+        self._reload_profiles()
+
+        # teclado ilustrativo + cartoes
+        self.kb_view = KeyboardView(self.zones)
+        self.kb_view.zoneClicked.connect(lambda i: self.zone_cards[i].color_btn.pick())
+        lay.addWidget(self.kb_view)
+
         grid = QGridLayout()
         self.zone_cards = []
         for i, st in enumerate(self.zones):
             card = ZoneCard(st)
             card.changed.connect(self.schedule_live)
+            card.changed.connect(self.kb_view.update)
+            card.copyPrevious.connect(self.copy_previous_color)
             grid.addWidget(card, 0, i)
             self.zone_cards.append(card)
         lay.addLayout(grid)
+
+        # atalhos de cor
+        qbox = QGroupBox("Atalhos de cor")
+        ql = QHBoxLayout(qbox)
+        self.preset_combo = QComboBox()
+        for label, key in (
+            ("Todas iguais (cor da zona 0)", "solid"),
+            ("Arco-íris", "rainbow"),
+            ("Degradê (zona 0 → última)", "gradient"),
+            ("Espelhar", "mirror"),
+        ):
+            self.preset_combo.addItem(label, key)
+        ql.addWidget(self.preset_combo, 1)
+        go = QPushButton("Aplicar às zonas")
+        go.clicked.connect(self.apply_preset)
+        ql.addWidget(go)
+        lay.addWidget(qbox)
 
         note = QLabel(
             "O mapa físico das zonas ainda não foi determinado neste modelo. "
@@ -368,6 +542,150 @@ class MainWindow(QMainWindow):
         lay.addWidget(btn)
         lay.addStretch(1)
         return w
+
+    # -- cores e perfis ---------------------------------------------------
+
+    def _set_zone_colors(self, hexes: list[str]) -> None:
+        for st, h in zip(self.zones, hexes):
+            st.color = QColor(h)
+        for card in self.zone_cards:
+            card.refresh()
+        self.kb_view.update()
+        self.schedule_live()
+
+    def copy_previous_color(self, index: int) -> None:
+        hexes = [z.color.name() for z in self.zones]
+        hexes[index] = hexes[index - 1]
+        self._set_zone_colors(hexes)
+
+    def apply_preset(self) -> None:
+        n = len(self.zones)
+        cur = [z.color.name() for z in self.zones]
+        key = self.preset_combo.currentData()
+        if key == "solid":
+            hexes = P.solid(cur[0], n)
+        elif key == "rainbow":
+            hexes = P.rainbow(n)
+        elif key == "gradient":
+            hexes = P.gradient(cur[0], cur[-1], n)
+        else:
+            hexes = P.mirror(cur)
+        self._set_zone_colors(hexes)
+
+    def _reload_profiles(self, select: str | None = None) -> None:
+        self.profile_combo.clear()
+        names = self.profile_store.names()
+        self.profile_combo.addItems(names)
+        if select in names:
+            self.profile_combo.setCurrentText(select)
+
+    def _current_profile(self, name: str) -> P.Profile:
+        return P.Profile(
+            name=name,
+            colors={z.index: z.color.name() for z in self.zones},
+            enabled={z.index: z.enabled for z in self.zones},
+            effect=self.effect.currentData(),
+            duration=self.duration.value(),
+            brightness=self.brightness.value() if self.power.isChecked() else 0,
+        )
+
+    def save_profile(self) -> None:
+        name, ok = QInputDialog.getText(
+            self, "Salvar perfil", "Nome do perfil:", text=self.profile_combo.currentText()
+        )
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        try:
+            exists = name in self.profile_store.names()
+            if exists and QMessageBox.question(
+                self, "Sobrescrever", f"O perfil “{name}” já existe. Sobrescrever?"
+            ) != QMessageBox.Yes:
+                return
+            self.profile_store.save(self._current_profile(name))
+        except (P.ProfileError, OSError) as exc:
+            QMessageBox.critical(self, "Não foi possível salvar", str(exc))
+            return
+        self._reload_profiles(name)
+        self.statusBar().showMessage(f"Perfil “{name}” salvo", 3000)
+
+    def _apply_profile(self, prof: P.Profile) -> None:
+        for st in self.zones:
+            if st.index in prof.colors:
+                st.color = QColor(prof.colors[st.index])
+                st.enabled = prof.enabled.get(st.index, True)
+        for card in self.zone_cards:
+            card.refresh()
+        self.kb_view.update()
+
+        i = self.effect.findData(prof.effect)
+        if i >= 0:
+            self.effect.setCurrentIndex(i)
+        self.duration.setValue(prof.duration)
+
+        self.brightness.blockSignals(True)
+        self.power.blockSignals(True)
+        on = prof.brightness > 0
+        self.power.setChecked(on)
+        if on:
+            self.brightness.setValue(prof.brightness)
+        self.brightness.setEnabled(on)
+        self.brightness_label.setText(f"{self.brightness.value()}%")
+        self.power.blockSignals(False)
+        self.brightness.blockSignals(False)
+
+        if self.live_check.isChecked():
+            self._apply_live()
+            self._set_brightness(prof.brightness)
+
+    def load_profile(self) -> None:
+        name = self.profile_combo.currentText()
+        if not name:
+            self.statusBar().showMessage("Nenhum perfil salvo", 3000)
+            return
+        try:
+            prof = self.profile_store.load(name)
+        except P.ProfileError as exc:
+            QMessageBox.critical(self, "Não foi possível carregar", str(exc))
+            return
+        self._apply_profile(prof)
+        self.statusBar().showMessage(f"Perfil “{name}” carregado", 3000)
+
+    def delete_profile(self) -> None:
+        name = self.profile_combo.currentText()
+        if not name:
+            return
+        if QMessageBox.question(self, "Excluir perfil", f"Excluir o perfil “{name}”?") \
+                != QMessageBox.Yes:
+            return
+        self.profile_store.delete(name)
+        self._reload_profiles()
+
+    def import_profile(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Importar perfil", "", "Perfil (*.json)")
+        if not path:
+            return
+        try:
+            prof = self.profile_store.import_file(Path(path))
+        except (P.ProfileError, OSError) as exc:
+            QMessageBox.critical(self, "Não foi possível importar", str(exc))
+            return
+        self._reload_profiles(prof.name)
+        self.statusBar().showMessage(f"Perfil “{prof.name}” importado", 3000)
+
+    def export_profile(self) -> None:
+        name = self.profile_combo.currentText()
+        if not name:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar perfil", f"{P.slug(name)}.json", "Perfil (*.json)"
+        )
+        if not path:
+            return
+        try:
+            self.profile_store.export_file(name, Path(path))
+        except (P.ProfileError, OSError) as exc:
+            QMessageBox.critical(self, "Não foi possível exportar", str(exc))
 
     # -- helpers ----------------------------------------------------------
 

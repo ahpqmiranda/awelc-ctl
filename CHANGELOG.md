@@ -1,11 +1,34 @@
 # Changelog
 
-## Não lançado
+## 0.4.0 — 2026-10-28
 
-Aba "Zonas e cor" mais prática, e perfis de iluminação salvos em disco.
+O backlight vira uma central de controle: energia, modo térmico e monitor. A aba
+"Zonas e cor" ganha perfis salvos em disco e atalhos de cor.
 
 ### Adicionado
 
+- Módulo `awelc.power`: leitura de modo térmico, turbo, SMT, governor/EPP,
+  frequência, ventoinhas, temperaturas, bateria e GPU (via `nvidia-smi`)
+- Três modos prontos — silencioso, equilibrado, desempenho máximo —
+  combinando perfil do `system76-power`, modo térmico do firmware e turbo
+- Monitor: a CPU é identificada pelo modelo (como a GPU), mostra o uso total e
+  o uso de cada thread, e o resumo do pacote fica embaixo dos gráficos. Threads
+  desligadas pelo SMT saem da lista
+- Monitor: razões de limitação de clock da GPU (limite de potência, térmico por
+  software ou hardware, freio de potência), em `awelc power status` e embaixo do
+  grupo GPU, com explicação no tooltip. "Ocioso" aparece como informativo, não
+  como limitação
+- Thunderbolt somente leitura (`awelc power status` e aba Energia): geração,
+  nível de segurança, dispositivos e autorização, e papéis da porta USB-C
+- CLI `awelc power`: `status`, `preset`, `system`, `thermal`, `turbo`, `smt`,
+  `charge`, `install`
+- Abas **Energia** e **Monitor** na GUI, que passa a abrir nelas
+- Monitor com temperatura e clock **por núcleo físico** (threads agrupadas
+  pela topologia) e GPU com VRAM usada/total e clocks de núcleo e memória;
+  os mesmos dados no `awelc power status`
+- Helper privilegiado `awelc-power-helper` com política polkit; entra no
+  `.deb` em `/usr/libexec/awelc-ctl/`
+- 24 testes contra sysfs falso, incluindo validação do helper
 - **Perfis**: salvar, carregar, excluir, importar e exportar a configuração da
   aba Zonas e cor (cor e liga/desliga de cada zona, efeito, duração e brilho).
   Ficam em `~/.config/awelc-ctl/profiles/<nome>.json`. Carregar atualiza a
@@ -38,6 +61,14 @@ Aba "Zonas e cor" mais prática, e perfis de iluminação salvos em disco.
 
 ### Decisões
 
+- **Sem controle de ventoinha.** `fanN_boost` é recusado pelo firmware e o PWM
+  manual rende +1 RPM — medido no awcc-fanctl. A ventoinha responde ao modo
+  térmico.
+- **Modo térmico pela interface agregada** (`/sys/firmware/acpi/platform_profile`),
+  nunca por um handler isolado: gravar só no `alienware-wmi` deixa o
+  `dell-pc` discordando, que é a origem do estado `custom`.
+- O preset aplica o perfil do `system76-power` antes do modo térmico, porque
+  o primeiro reescreve o segundo.
 - O desenho do teclado usa quatro faixas verticais **só como ilustração**: o
   mapa físico das zonas do G5 5590 continua sem confirmação
   (`docs/g5590.md`). Ele passa a refletir a realidade quando o `zonemap.py`
@@ -47,53 +78,10 @@ Aba "Zonas e cor" mais prática, e perfis de iluminação salvos em disco.
 
 ### Não validado
 
+- Escrita real como root pelo helper para turbo, SMT e carga da bateria. Os
+  testes cobrem a lógica contra um sysfs falso; falta exercitar no hardware
 - Carregar perfil com pré-visualização ligada no teclado real. A GUI foi
   exercitada só sem tela (offscreen), sem o controlador
-
-## 0.4.0 — 2026-10-26
-
-O backlight vira uma central de controle: energia, modo térmico e monitor.
-
-### Adicionado
-
-- Módulo `awelc.power`: leitura de modo térmico, turbo, SMT, governor/EPP,
-  frequência, ventoinhas, temperaturas, bateria e GPU (via `nvidia-smi`)
-- Três modos prontos — silencioso, equilibrado, desempenho máximo —
-  combinando perfil do `system76-power`, modo térmico do firmware e turbo
-- Monitor: a CPU é identificada pelo modelo (como a GPU), mostra o uso total e
-  o uso de cada thread, e o resumo do pacote fica embaixo dos gráficos. Threads
-  desligadas pelo SMT saem da lista
-- Monitor: razões de limitação de clock da GPU (limite de potência, térmico por
-  software ou hardware, freio de potência), em `awelc power status` e embaixo do
-  grupo GPU, com explicação no tooltip. "Ocioso" aparece como informativo, não
-  como limitação
-- Thunderbolt somente leitura (`awelc power status` e aba Energia): geração,
-  nível de segurança, dispositivos e autorização, e papéis da porta USB-C
-- CLI `awelc power`: `status`, `preset`, `system`, `thermal`, `turbo`, `smt`,
-  `charge`, `install`
-- Abas **Energia** e **Monitor** na GUI, que passa a abrir nelas
-- Monitor com temperatura e clock **por núcleo físico** (threads agrupadas
-  pela topologia) e GPU com VRAM usada/total e clocks de núcleo e memória;
-  os mesmos dados no `awelc power status`
-- Helper privilegiado `awelc-power-helper` com política polkit; entra no
-  `.deb` em `/usr/libexec/awelc-ctl/`
-- 24 testes contra sysfs falso, incluindo validação do helper
-
-### Decisões
-
-- **Sem controle de ventoinha.** `fanN_boost` é recusado pelo firmware e o PWM
-  manual rende +1 RPM — medido no awcc-fanctl. A ventoinha responde ao modo
-  térmico.
-- **Modo térmico pela interface agregada** (`/sys/firmware/acpi/platform_profile`),
-  nunca por um handler isolado: gravar só no `alienware-wmi` deixa o
-  `dell-pc` discordando, que é a origem do estado `custom`.
-- O preset aplica o perfil do `system76-power` antes do modo térmico, porque
-  o primeiro reescreve o segundo.
-
-### Não validado
-
-- Escrita real como root pelo helper (modo térmico, turbo, carga). Os testes
-  cobrem a lógica contra um sysfs falso; falta exercitar no hardware.
 
 ## 0.3.0 — 2026-09-07
 
